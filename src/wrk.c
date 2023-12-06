@@ -1,5 +1,10 @@
 // Copyright (C) 2012 - Will Glozer.  All rights reserved.
 
+#include <assert.h>
+#include <inttypes.h>
+#include <stddef.h>
+#include <time.h>
+
 #include "wrk.h"
 #include "script.h"
 #include "main.h"
@@ -22,6 +27,14 @@ static struct {
     stats *latency;
     stats *requests;
 } statistics;
+
+typedef struct {
+    uint64_t now;
+    uint64_t delta_requests;
+} spot_observation;
+static spot_observation *spot_observations = NULL;
+static size_t num_spot_observations = 0;
+static size_t n_spot_observations = 0;
 
 static struct sock sock = {
     .connect  = sock_connect,
@@ -90,7 +103,7 @@ int main(int argc, char **argv) {
 
     statistics.latency  = stats_alloc(cfg.timeout * 1000);
     statistics.requests = stats_alloc(MAX_THREAD_RATE_S);
-    thread *threads     = zcalloc(cfg.threads * sizeof(thread));
+    thread *threads     = zcalloc((cfg.threads + 1) * sizeof(thread));
 
     lua_State *L = script_create(cfg.script, url, headers);
     if (!script_resolve(L, host, service)) {
@@ -99,9 +112,13 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    num_spot_observations = (((uint64_t)cfg.duration * 1000) / DUMP_INTERVAL_MS) + 5;
+    spot_observations = (spot_observation *)zcalloc(num_spot_observations * sizeof(spot_observation));
+    n_spot_observations = 0;
+
     cfg.host = host;
 
-    for (uint64_t i = 0; i < cfg.threads; i++) {
+    for (uint64_t i = 0; i < (cfg.threads + 1); i++) {
         thread *t      = &threads[i];
         t->loop        = aeCreateEventLoop(10 + cfg.connections * 3);
         t->connections = cfg.connections / cfg.threads;
@@ -120,7 +137,7 @@ int main(int argc, char **argv) {
             }
         }
 
-        if (!t->loop || pthread_create(&t->thread, NULL, &thread_main, t)) {
+        if (!t->loop || pthread_create(&t->thread, NULL, (i < cfg.threads) ? &thread_main : &thread_per_second, t)) {
             char *msg = strerror(errno);
             fprintf(stderr, "unable to create thread %"PRIu64": %s\n", i, msg);
             exit(2);
@@ -136,7 +153,7 @@ int main(int argc, char **argv) {
 
     char *time = format_time_s(cfg.duration);
     printf("Running %s test @ %s\n", time, url);
-    printf("  %"PRIu64" threads and %"PRIu64" connections\n", cfg.threads, cfg.connections);
+    printf("  %"PRIu64" threads and %" PRIu64 " connections\n", cfg.threads, cfg.connections);
 
     uint64_t start    = time_us();
     uint64_t complete = 0;
@@ -146,7 +163,7 @@ int main(int argc, char **argv) {
     sleep(cfg.duration);
     stop = 1;
 
-    for (uint64_t i = 0; i < cfg.threads; i++) {
+    for (uint64_t i = 0; i < (cfg.threads + 1); i++) {
         thread *t = &threads[i];
         pthread_join(t->thread, NULL);
 
@@ -233,6 +250,30 @@ void *thread_main(void *arg) {
     return NULL;
 }
 
+void *thread_per_second(void *arg) {
+    thread *thread = arg;
+
+    char *request = NULL;
+    size_t length = 0;
+
+    if (!cfg.dynamic) {
+        script_request(thread->L, &request, &length);
+    }
+
+    thread->cs = zcalloc(thread->connections * sizeof(connection));
+
+    aeEventLoop *loop = thread->loop;
+    aeCreateTimeEvent(loop, DUMP_INTERVAL_MS, record_per_second, thread, NULL);
+
+    thread->start = time_us();
+    aeMain(loop);
+
+    aeDeleteEventLoop(loop);
+    zfree(thread->cs);
+
+    return NULL;
+}
+
 static int connect_socket(thread *thread, connection *c) {
     struct addrinfo *addr = thread->addr;
     struct aeEventLoop *loop = thread->loop;
@@ -270,13 +311,44 @@ static int reconnect_socket(thread *thread, connection *c) {
     return connect_socket(thread, c);
 }
 
+static uint64_t requests_overall = 0;  // target of a synchronized +=
+static uint64_t last_requests_overall = 0;  // only one reader/writer
+
+static int record_per_second(aeEventLoop *loop, long long id, void *) {
+    uint64_t now = time_us();
+    uint64_t million = 1 * 1000 * 1000;
+    uint64_t sample_requests_overall = requests_overall;
+    uint64_t delta_requests_overall = sample_requests_overall - last_requests_overall;
+    last_requests_overall = sample_requests_overall;
+
+    assert(n_spot_observations < num_spot_observations);
+    spot_observation *p = &spot_observations[n_spot_observations];
+    n_spot_observations += 1;
+
+    p->now = now;
+    p->delta_requests = delta_requests_overall;
+
+    if (true) {
+      printf("RPS at Time: %" PRId64 ".%06" PRIu64 " %10" PRIu64 "\n",
+          now/million, now%million, delta_requests_overall);
+    }
+    if (stop) {
+      aeStop(loop);
+    }
+    return DUMP_INTERVAL_MS;
+}
+
 static int record_rate(aeEventLoop *loop, long long id, void *data) {
     thread *thread = data;
-
+    __sync_fetch_and_add(&requests_overall, thread->requests);
     if (thread->requests > 0) {
         uint64_t elapsed_ms = (time_us() - thread->start) / 1000;
         uint64_t requests = (thread->requests / (double) elapsed_ms) * 1000;
 
+        if (false) {
+          printf("%5" PRId64 " record_rate %6" PRId64 " requests/second over %5" PRId64 " msec\n",
+              (uint64_t)id, requests, elapsed_ms);
+        }
         stats_record(statistics.requests, requests);
 
         thread->requests = 0;

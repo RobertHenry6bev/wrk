@@ -1,4 +1,5 @@
 CFLAGS  += -std=c99 -Wall -O2 -D_REENTRANT
+CFLAGS  += -std=c99 -Wall -O0 -ggdb -D_REENTRANT
 LIBS    := -lm -lssl -lcrypto -lpthread
 
 TARGET  := $(shell uname -s | tr '[A-Z]' '[a-z]' 2>/dev/null || echo unknown)
@@ -52,7 +53,7 @@ clean:
 
 $(BIN): $(OBJ)
 	@echo LINK $(BIN)
-	@$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
 
 $(OBJ): config.h Makefile $(DEPS) | $(ODIR)
 
@@ -61,14 +62,14 @@ $(ODIR):
 
 $(ODIR)/bytecode.c: src/wrk.lua $(DEPS)
 	@echo LUAJIT $<
-	@$(SHELL) -c 'PATH="obj/bin:$(PATH)" luajit -b "$(CURDIR)/$<" "$(CURDIR)/$@"'
+	$(SHELL) -c 'PATH="obj/bin:$(PATH)" luajit -b "$(CURDIR)/$<" "$(CURDIR)/$@"'
 
 $(ODIR)/version.o:
 	@echo 'const char *VERSION="$(VER)";' | $(CC) -xc -c -o $@ -
 
 $(ODIR)/%.o : %.c
 	@echo CC $<
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # Dependencies
 

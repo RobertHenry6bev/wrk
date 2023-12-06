@@ -28,10 +28,12 @@
 struct config;
 
 static void *thread_main(void *);
+static void *thread_per_second(void *);
 static int connect_socket(thread *, connection *);
 static int reconnect_socket(thread *, connection *);
 
 static int record_rate(aeEventLoop *, long long, void *);
+static int record_per_second(aeEventLoop *, long long, void *);
 
 static void socket_connected(aeEventLoop *, int, void *, int);
 static void socket_writeable(aeEventLoop *, int, void *, int);

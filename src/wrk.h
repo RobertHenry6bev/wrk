@@ -4,6 +4,7 @@
 #include "config.h"
 #include <pthread.h>
 #include <inttypes.h>
+#include <stddef.h>
 #include <sys/types.h>
 #include <netdb.h>
 #include <sys/socket.h>
@@ -18,9 +19,11 @@
 
 #define RECVBUF  8192
 
-#define MAX_THREAD_RATE_S   10000000
+#define MAX_THREAD_RATE_S   10*1000*1000
 #define SOCKET_TIMEOUT_MS   2000
-#define RECORD_INTERVAL_MS  100
+#define RECORD_INTERVAL_MS   100
+
+#define DUMP_INTERVAL_MS    1000
 
 extern const char *VERSION;
 
