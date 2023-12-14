@@ -328,10 +328,10 @@ static int record_per_second(aeEventLoop *loop, long long id, void *) {
     p->now = now;
     p->delta_requests = delta_requests_overall;
 
-    if (true) {
-      printf("RPS at Time: %" PRId64 ".%06" PRIu64 " %10" PRIu64 "\n",
-          now/million, now%million, delta_requests_overall);
-    }
+    fprintf(stdout,
+        "RPS at Time: %" PRId64 ".%06" PRIu64 " %10" PRIu64 "\n",
+        now/million, now%million, delta_requests_overall);
+    fflush(stdout);
     if (stop) {
       aeStop(loop);
     }
@@ -344,13 +344,7 @@ static int record_rate(aeEventLoop *loop, long long id, void *data) {
     if (thread->requests > 0) {
         uint64_t elapsed_ms = (time_us() - thread->start) / 1000;
         uint64_t requests = (thread->requests / (double) elapsed_ms) * 1000;
-
-        if (false) {
-          printf("%5" PRId64 " record_rate %6" PRId64 " requests/second over %5" PRId64 " msec\n",
-              (uint64_t)id, requests, elapsed_ms);
-        }
         stats_record(statistics.requests, requests);
-
         thread->requests = 0;
         thread->start    = time_us();
     }
