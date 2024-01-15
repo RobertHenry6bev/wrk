@@ -3,7 +3,9 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stddef.h>
+#include <sys/types.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "wrk.h"
 #include "script.h"
@@ -79,6 +81,10 @@ int main(int argc, char **argv) {
         usage();
         exit(1);
     }
+    fprintf(stdout, "##ChildProcessId:%d\n", getpid());  // For consumption by crank > 01Jan2024
+    fflush(stdout);
+    fprintf(stderr, "##ChildProcessId:%d\n", getpid());  // For consumption by crank > 01Jan2024 (preferred?)
+    fflush(stderr);
 
     char *schema  = copy_url_part(url, &parts, UF_SCHEMA);
     char *host    = copy_url_part(url, &parts, UF_HOST);
