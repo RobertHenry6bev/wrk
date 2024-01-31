@@ -320,7 +320,7 @@ static int reconnect_socket(thread *thread, connection *c) {
 static uint64_t requests_overall = 0;  // target of a synchronized +=
 static uint64_t last_requests_overall = 0;  // only one reader/writer
 
-static int record_per_second(aeEventLoop *loop, long long id, void *) {
+static int record_per_second(aeEventLoop *loop, long long id, void *_unused) {
     uint64_t now = time_us();
     uint64_t million = 1 * 1000 * 1000;
     uint64_t sample_requests_overall = requests_overall;
