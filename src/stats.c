@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "stats.h"
 #include "zmalloc.h"
@@ -20,6 +21,7 @@ void stats_free(stats *stats) {
 }
 
 int stats_record(stats *stats, uint64_t n) {
+    printf("RECORD %" PRIu64 "\n", n);
     if (n >= stats->limit) return 0;
     __sync_fetch_and_add(&stats->data[n], 1);
     __sync_fetch_and_add(&stats->count, 1);
