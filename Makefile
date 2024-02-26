@@ -71,6 +71,10 @@ $(ODIR)/%.o : %.c
 	@echo CC $<
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+$(ODIR)/%.E : %.c
+	@echo CC $<
+	$(CC) $(CFLAGS) -E -o $@ $<
+
 # Dependencies
 
 LUAJIT  := $(notdir $(patsubst %.zip,%,$(wildcard deps/LuaJIT*.zip)))
