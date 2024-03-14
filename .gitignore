@@ -1,2 +1,10 @@
 obj/
 wrk
+
+deps/luajit/src/*.o
+deps/luajit/src/*.a
+deps/luajit/src/*.so
+
+deps/luajit/src/host/*.o
+
+
