@@ -7,4 +7,4 @@ deps/luajit/src/*.so
 
 deps/luajit/src/host/*.o
 
-
+.gdbhistory

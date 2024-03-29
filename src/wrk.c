@@ -487,8 +487,10 @@ static void socket_writeable(aeEventLoop *loop, int fd, void *data, int mask) {
     if (!c->written) {
         uint64_t old_req_sent;
         atomicGetIncr(req_sent, old_req_sent, 1);
-        if (old_req_sent > cfg.count) {
-            stop = 1;
+        if (cfg.duration == 0 && cfg.count > 1) {
+          if (old_req_sent > cfg.count) {
+              stop = 1;
+          }
         }
         if (cfg.dynamic) {
             script_request(thread->L, &c->request, &c->length);
