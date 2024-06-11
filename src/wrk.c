@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
         stop = 1;
     } else  {
         while (!stop) {
-          sleep(1);
+          usleep(20000);
         }
     }
 
@@ -287,7 +287,7 @@ void *thread_per_second(void *arg) {
     thread->cs = zcalloc(thread->connections * sizeof(connection));
 
     aeEventLoop *loop = thread->loop;
-    aeCreateTimeEvent(loop, DUMP_INTERVAL_MS, record_per_second, thread, NULL);
+    aeCreateTimeEvent(loop, RECORD_INTERVAL_MS, record_per_second, thread, NULL);
 
     thread->start = time_us();
     aeMain(loop);
@@ -337,29 +337,35 @@ static int reconnect_socket(thread *thread, connection *c) {
 
 static uint64_t requests_overall = 0;  // target of a synchronized +=
 static uint64_t last_requests_overall = 0;  // only one reader/writer
+static uint64_t epoch_max = DUMP_INTERVAL_MS / RECORD_INTERVAL_MS;
+static uint64_t epoch_cur = 0;
 
 static int record_per_second(aeEventLoop *loop, long long id, void *_unused) {
-    uint64_t now = time_us();
-    uint64_t million = 1 * 1000 * 1000;
-    uint64_t sample_requests_overall = requests_overall;
-    uint64_t delta_requests_overall = sample_requests_overall - last_requests_overall;
-    last_requests_overall = sample_requests_overall;
 
-    assert(n_spot_observations < num_spot_observations);
-    spot_observation *p = &spot_observations[n_spot_observations];
-    n_spot_observations += 1;
+    if (++epoch_cur == epoch_max) {
+        epoch_cur = 0;
+        uint64_t now = time_us();
+        uint64_t million = 1 * 1000 * 1000;
+        uint64_t sample_requests_overall = requests_overall;
+        uint64_t delta_requests_overall = sample_requests_overall - last_requests_overall;
+        last_requests_overall = sample_requests_overall;
 
-    p->now = now;
-    p->delta_requests = delta_requests_overall;
+        assert(n_spot_observations < num_spot_observations);
+        spot_observation *p = &spot_observations[n_spot_observations];
+        n_spot_observations += 1;
 
-    fprintf(stdout,
-        "RPS at Time: %" PRId64 ".%06" PRIu64 " %10" PRIu64 "\n",
-        now/million, now%million, delta_requests_overall);
-    fflush(stdout);
-    if (stop) {
-      aeStop(loop);
+        p->now = now;
+        p->delta_requests = delta_requests_overall;
+
+        fprintf(stdout,
+            "RPS at Time: %" PRId64 ".%06" PRIu64 " %10" PRIu64 "\n",
+            now/million, now%million, delta_requests_overall);
+        fflush(stdout);
     }
-    return DUMP_INTERVAL_MS;
+    if (stop) {
+        aeStop(loop);
+    }
+    return RECORD_INTERVAL_MS;
 }
 
 static int record_rate(aeEventLoop *loop, long long id, void *data) {
